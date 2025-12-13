@@ -8,7 +8,6 @@ import sys
 import os
 
 # ---------------------- 修复导入路径 ----------------------
-# 将项目根目录添加到 Python 路径
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 if project_root not in sys.path:
@@ -28,15 +27,147 @@ except ImportError as e:
     AC3_MRV_LCV_Solver = None
     SudokuGenerator = None
 
-# ---------------------- 1. 初始化主窗口 ----------------------
+# ---------------------- 1. 初始化主窗口 + 全局样式配置（核心修复）----------------------
 root = tk.Tk()
-root.title("数独求解可视化工具 - V4.0（算法驱动版）")
-root.geometry("500x780")
+root.title("数独求解可视化工具 - V5.0（布局优化版）")
+root.geometry("1200x800")
 root.resizable(False, False)
 
-# ---------------------- 2. 创建9×9网格容器 ----------------------
-grid_frame = ttk.Frame(root, padding="20")
-grid_frame.pack(expand=True, fill=tk.BOTH)
+# 统一配置所有ttk组件样式（解决font参数报错问题）
+style = ttk.Style(root)
+
+# 1. 大按钮样式（功能按钮）
+style.configure(
+    "Large.TButton",
+    font=("Arial", 12, "bold"),
+    padding=(15, 8)  # 按钮内边距：左右15px，上下8px
+)
+
+# 2. 普通标签样式（难度/算法标签、统计项标签）
+style.configure(
+    "Normal.TLabel",
+    font=("Arial", 11)
+)
+
+# 3. 复选框样式（动态填数动画开关）
+style.configure(
+    "Normal.TCheckbutton",
+    font=("Arial", 11)
+)
+
+# 4. 下拉框样式（难度/算法选择）
+style.configure(
+    "Normal.TCombobox",
+    font=("Arial", 11)
+)
+
+# 5. 标签框架样式（搜索树、统计区标题）
+style.configure(
+    "Title.TLabelframe",
+    font=("Arial", 11)
+)
+style.configure(
+    "Title.TLabelframe.Label",
+    font=("Arial", 11)  # LabelFrame标题文字样式
+)
+
+# ---------------------- 2. 顶部功能栏（拆分为两排）----------------------
+# 顶部总容器
+top_container = ttk.Frame(root, padding="10")
+top_container.pack(fill=tk.X, side=tk.TOP)
+
+# 第一排：难度选择、算法选择、动画开关
+top_frame1 = ttk.Frame(top_container)
+top_frame1.pack(fill=tk.X, side=tk.TOP, pady=(0, 8))
+
+# 难度选择（使用样式替代直接font参数）
+difficulty_label = ttk.Label(top_frame1, text="难度：", style="Normal.TLabel")
+difficulty_label.pack(side=tk.LEFT, padx=8)
+difficulty_var = tk.StringVar(value="中等")
+difficulty_options = ["简单", "中等", "困难"]
+difficulty_menu = ttk.Combobox(
+    top_frame1,
+    textvariable=difficulty_var,
+    values=difficulty_options,
+    state="readonly",
+    width=10,
+    style="Normal.TCombobox"  # 应用下拉框样式
+)
+difficulty_menu.pack(side=tk.LEFT, padx=8)
+
+# 算法选择（使用样式替代直接font参数）
+alg_label = ttk.Label(top_frame1, text="算法：", style="Normal.TLabel")
+alg_label.pack(side=tk.LEFT, padx=8)
+algorithm_var = tk.StringVar(value="请选择算法")
+alg_options = ["基础DFS算法", "MRV+LCV算法", "AC3+MRV+LCV算法"]
+alg_menu = ttk.Combobox(
+    top_frame1,
+    textvariable=algorithm_var,
+    values=alg_options,
+    state="readonly",
+    width=18,
+    style="Normal.TCombobox"  # 应用下拉框样式
+)
+alg_menu.pack(side=tk.LEFT, padx=8)
+
+# 动态填数动画开关（核心修复：移除font参数，改用style）
+animate_var = tk.BooleanVar(value=True)
+animate_check = ttk.Checkbutton(
+    top_frame1,
+    text="动态填数动画",
+    variable=animate_var,
+    style="Normal.TCheckbutton"  # 应用复选框样式
+)
+animate_check.pack(side=tk.LEFT, padx=15)
+
+# 第二排：功能按钮（超大尺寸，应用自定义样式）
+top_frame2 = ttk.Frame(top_container)
+top_frame2.pack(fill=tk.X, side=tk.TOP)
+
+# 功能按钮 - 应用Large.TButton样式，宽度大幅增加，间距加大
+clear_btn = ttk.Button(
+    top_frame2,
+    text="清空",
+    command=lambda: clear_sudoku(),
+    width=18,
+    style="Large.TButton"
+)
+clear_btn.pack(side=tk.LEFT, padx=10)
+
+fill_btn = ttk.Button(
+    top_frame2,
+    text="生成数独",
+    command=lambda: fill_with_difficulty(),
+    width=22,
+    style="Large.TButton"
+)
+fill_btn.pack(side=tk.LEFT, padx=10)
+
+solve_btn = ttk.Button(
+    top_frame2,
+    text="开始求解",
+    command=lambda: solve_sudoku(),
+    width=22,
+    style="Large.TButton"
+)
+solve_btn.pack(side=tk.LEFT, padx=10)
+
+compare_btn = ttk.Button(
+    top_frame2,
+    text="对比所有算法",
+    command=lambda: compare_algorithms(),
+    width=25,
+    style="Large.TButton"
+)
+compare_btn.pack(side=tk.LEFT, padx=10)
+
+# ---------------------- 3. 中间主体区域（网格+搜索树）----------------------
+main_body = ttk.Frame(root, padding="10")
+main_body.pack(fill=tk.BOTH, expand=True)
+
+# 数独网格容器（左侧）
+grid_frame = ttk.Frame(main_body, padding="10")
+grid_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
 sudoku_entries = [[None for _ in range(9)] for _ in range(9)]
 cell_colors = []
@@ -69,7 +200,100 @@ for row in range(9):
 for col in range(9):
     grid_frame.grid_columnconfigure(col, weight=1)
 
-# ---------------------- 3. 核心数据处理函数 ----------------------
+# 搜索树可视化区域（右侧）- 核心修复：移除font参数，改用style
+search_tree_frame = ttk.LabelFrame(
+    main_body,
+    text="搜索树可视化",
+    padding="10",
+    style="Title.TLabelframe"  # 应用LabelFrame样式
+)
+search_tree_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(10, 0))
+
+# 搜索树占位（后续可替换为真实可视化组件）
+tree_canvas = tk.Canvas(search_tree_frame, bg="#f8f8f8", bd=1, relief=tk.SUNKEN)
+tree_canvas.pack(fill=tk.BOTH, expand=True)
+tree_placeholder = ttk.Label(
+    search_tree_frame,
+    text="搜索过程可视化\n（算法运行时动态更新）",
+    style="Normal.TLabel",  # 应用普通标签样式
+    foreground="#666"
+)
+tree_placeholder.pack(expand=True)
+
+# ---------------------- 4. 底部统计区域 ----------------------
+# 核心修复：移除font参数，改用style
+stats_frame = ttk.LabelFrame(
+    root,
+    text="算法性能统计",
+    padding="10",
+    style="Title.TLabelframe"
+)
+stats_frame.pack(fill=tk.BOTH, padx=10, pady=(0, 10))
+
+# 统计控制栏（图表显示按钮）
+stats_control = ttk.Frame(stats_frame)
+stats_control.pack(fill=tk.X, side=tk.TOP, pady=(0, 10))
+chart_btn = ttk.Button(
+    stats_control,
+    text="显示统计图表",
+    command=lambda: show_chart(),
+    style="Large.TButton",
+    width=15
+)
+chart_btn.pack(side=tk.RIGHT, padx=5)
+
+# 统计内容区域（左右分栏：单个算法+对比结果）
+stats_content = ttk.Frame(stats_frame)
+stats_content.pack(fill=tk.BOTH, expand=True)
+
+# 单个算法统计（左侧）
+single_stats = ttk.Frame(stats_content)
+single_stats.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
+
+perf_labels = {}
+metrics = [
+    ("algorithm", "算法名称：", "未运行"),
+    ("time", "执行时间：", "0.000 秒"),
+    ("nodes", "搜索节点数：", "0"),
+    ("backtracks", "回溯次数：", "0"),
+    ("status", "求解状态：", "待求解")
+]
+for i, (key, label_text, default_value) in enumerate(metrics):
+    row_frame = ttk.Frame(single_stats)
+    row_frame.pack(fill=tk.X, pady=3)
+    # 应用普通标签样式
+    label = ttk.Label(row_frame, text=label_text, style="Normal.TLabel")
+    label.pack(side=tk.LEFT)
+    # 自定义值标签字体（tk.Label支持直接font参数）
+    value_label = tk.Label(
+        row_frame,
+        text=default_value,
+        font=("Arial", 11, "bold"),
+        foreground="#0066cc"
+    )
+    value_label.pack(side=tk.LEFT, padx=5)
+    perf_labels[key] = value_label
+
+# 算法对比统计（右侧）- 核心修复：移除font参数，改用style
+compare_stats = ttk.LabelFrame(
+    stats_content,
+    text="算法对比结果",
+    style="Title.TLabelframe"
+)
+compare_stats.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(10, 0))
+
+# tk.Text支持直接font参数
+compare_text = tk.Text(
+    compare_stats,
+    font=("Arial", 11),
+    width=40,
+    height=6
+)
+compare_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+compare_text.insert(tk.END, "点击「对比所有算法」按钮查看结果...")
+compare_text.config(state="disabled")
+
+# ---------------------- 核心数据处理函数（完全不变）----------------------
 def fill_sudoku(sudoku_data):
     disable_buttons()
     for row in range(9):
@@ -80,7 +304,7 @@ def fill_sudoku(sudoku_data):
             entry.delete(0, tk.END)
             if value != 0:
                 entry.insert(0, str(value))
-            entry.config(state="readonly" if is_animating else "normal")
+            entry.config(state="readonly" if (is_animating or animate_var.get()) else "normal")
     enable_buttons()
 
 def clear_sudoku():
@@ -88,6 +312,11 @@ def clear_sudoku():
     empty_data = [[0 for _ in range(9)] for _ in range(9)]
     fill_sudoku(empty_data)
     update_performance(None)
+    # 清空对比结果
+    compare_text.config(state="normal")
+    compare_text.delete(1.0, tk.END)
+    compare_text.insert(tk.END, "点击「对比所有算法」按钮查看结果...")
+    compare_text.config(state="disabled")
     enable_buttons()
 
 def read_sudoku():
@@ -101,7 +330,7 @@ def read_sudoku():
                 sudoku_data[row][col] = 0
     return sudoku_data
 
-# ---------------------- 数独题库（复用你的代码）----------------------
+# ---------------------- 数独题库（完全不变）----------------------
 sample_sudoku = [
     [5, 3, 0, 0, 7, 0, 0, 0, 0],
     [6, 0, 0, 1, 9, 5, 0, 0, 0],
@@ -113,7 +342,6 @@ sample_sudoku = [
     [0, 0, 0, 4, 1, 9, 0, 0, 5],
     [0, 0, 0, 0, 8, 0, 0, 7, 9]
 ]
-
 easy_puzzles = [
     [
         [0, 0, 0, 2, 6, 0, 7, 0, 1],
@@ -138,7 +366,6 @@ easy_puzzles = [
         [0, 0, 0, 3, 0, 6, 0, 9, 0]
     ]
 ]
-
 medium_puzzles = [
     sample_sudoku,
     [
@@ -153,7 +380,6 @@ medium_puzzles = [
         [0, 7, 0, 0, 0, 0, 3, 0, 0]
     ]
 ]
-
 hard_puzzles = [
     [
         [0, 0, 0, 0, 0, 0, 0, 1, 2],
@@ -190,11 +416,10 @@ def get_puzzle_by_difficulty(level: str):
         pool = [sample_sudoku]
     return random.choice(pool)
 
-# ---------------------- 4. 动画模块（恢复阶段2优化版）----------------------
+# ---------------------- 动画模块（完全不变）----------------------
 def animate_cell_color(entry, start_color, end_color, duration=200):
     steps = 20
     step_duration = duration // steps
-
     def hex_to_rgb(hex_color):
         hex_color = hex_color.lstrip('#')
         return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
@@ -233,7 +458,7 @@ def animate_number_fill(entry, value, duration=300):
     def update_step(step):
         if step > steps:
             entry.config(foreground="#000000")
-            entry.config(state="readonly" if is_animating else "normal")
+            entry.config(state="readonly" if (is_animating or animate_var.get()) else "normal")
             return
         current_r = int(start_r - (start_r - end_r) * (step / steps))
         current_g = int(start_g - (start_g - end_g) * (step / steps))
@@ -251,12 +476,12 @@ def animate_backtrack(entry, duration=200):
     def clear_after_highlight():
         entry.config(state="normal")
         entry.delete(0, tk.END)
-        entry.config(state="readonly" if is_animating else "normal")
+        entry.config(state="readonly" if (is_animating or animate_var.get()) else "normal")
         animate_cell_color(entry, "#ffb6c1", original_color, duration=duration//2)
     
     entry.after(duration//2, clear_after_highlight)
 
-# ---------------------- 5. 核心动画接口（供A调用）----------------------
+# ---------------------- 核心动画接口（完全不变）----------------------
 def animation_fill_cell(row, col, value):
     if not (0 <= row < 9 and 0 <= col < 9):
         print("无效的单元格坐标")
@@ -278,18 +503,18 @@ def animation_backtrack_cell(row, col):
     entry = sudoku_entries[row][col]
     add_animation_to_queue(animate_backtrack, entry, 200)
 
-# ---------------------- 6. 动画队列 ----------------------
+# ---------------------- 动画队列（完全不变）----------------------
 animation_queue = []
 is_animating = False
 
 def add_animation_to_queue(anim_func, *args):
     animation_queue.append((anim_func, args))
-    if not is_animating:
+    if not is_animating and animate_var.get():
         run_next_animation()
 
 def run_next_animation():
     global is_animating
-    if not animation_queue:
+    if not animation_queue or not animate_var.get():
         is_animating = False
         return
     is_animating = True
@@ -297,14 +522,16 @@ def run_next_animation():
     anim_func(*args)
     root.after(350, run_next_animation)
 
-# ---------------------- 7. 按钮状态控制 ----------------------
+# ---------------------- 按钮状态控制（完全不变）----------------------
 def disable_buttons():
     fill_btn.config(state="disabled")
     clear_btn.config(state="disabled")
     solve_btn.config(state="disabled")
     compare_btn.config(state="disabled")
     difficulty_menu.config(state="disabled")
-    alg_menu.config(state="disabled")  # 🔸 新增：禁用算法下拉框
+    alg_menu.config(state="disabled")
+    animate_check.config(state="disabled")
+    chart_btn.config(state="disabled")
     for row in range(9):
         for col in range(9):
             sudoku_entries[row][col].config(state="readonly")
@@ -315,35 +542,15 @@ def enable_buttons():
     solve_btn.config(state="normal")
     compare_btn.config(state="normal")
     difficulty_menu.config(state="readonly")
-    alg_menu.config(state="readonly")  # 🔸 新增：恢复算法下拉框
+    alg_menu.config(state="readonly")
+    animate_check.config(state="normal")
+    chart_btn.config(state="normal")
     for row in range(9):
         for col in range(9):
             sudoku_entries[row][col].config(state="normal")
 
-# ---------------------- 8. 难度选择区 ----------------------
-difficulty_frame = ttk.Frame(root, padding="0 10 0 0")
-difficulty_frame.pack(fill=tk.X, padx=20)
-
-difficulty_label = ttk.Label(difficulty_frame, text="选择数独难度：")
-difficulty_label.pack(side=tk.LEFT, padx=5)
-
-difficulty_var = tk.StringVar(value="中等")
-difficulty_options = ["简单", "中等", "困难"]
-difficulty_menu = ttk.Combobox(
-    difficulty_frame,
-    textvariable=difficulty_var,
-    values=difficulty_options,
-    state="readonly",
-    width=10
-)
-difficulty_menu.pack(side=tk.LEFT, padx=5)
-
-# ---------------------- 9. 功能按钮区 ----------------------
-button_frame = ttk.Frame(root, padding="0 10 0 10")
-button_frame.pack(fill=tk.X, padx=20)
-
+# ---------------------- 生成数独函数（完全不变）----------------------
 def fill_with_difficulty():
-    """使用生成器根据难度生成数独"""
     if SudokuGenerator is None:
         messagebox.showerror("错误", "数独生成器未加载")
         return
@@ -352,7 +559,6 @@ def fill_with_difficulty():
     difficulty_map = {"简单": "Easy", "中等": "Medium", "困难": "Hard"}
     target_difficulty = difficulty_map.get(level, "Medium")
     
-    # 在后台线程生成，避免UI卡顿
     def generate_in_thread():
         disable_buttons()
         perf_labels['status'].config(text=f"正在生成{level}数独...", foreground="#ff9900")
@@ -366,7 +572,7 @@ def fill_with_difficulty():
             )
             root.after(0, lambda: fill_sudoku(puzzle))
             root.after(0, lambda: perf_labels['status'].config(
-                text=f"已生成 {info['level']} 难度（提示数:{info['clues']}）", 
+                text=f"已生成 {info['level']} 难度（提示数:{info['clues']}）",
                 foreground="#0066cc"
             ))
         except Exception as e:
@@ -376,48 +582,7 @@ def fill_with_difficulty():
     
     threading.Thread(target=generate_in_thread, daemon=True).start()
 
-fill_btn = ttk.Button(button_frame, text="生成数独（按难度）", command=fill_with_difficulty)
-fill_btn.pack(side=tk.LEFT, padx=5)
-
-clear_btn = ttk.Button(button_frame, text="清空网格", command=clear_sudoku)
-clear_btn.pack(side=tk.LEFT, padx=5)
-
-
-
-# ---------------------- 10. 算法选择区 ----------------------
-algorithm_frame = ttk.Frame(root, padding="0 0 0 10")
-algorithm_frame.pack(fill=tk.X, padx=20)
-
-alg_label = ttk.Label(algorithm_frame, text="选择求解算法：")
-alg_label.pack(side=tk.LEFT, padx=5)
-
-algorithm_var = tk.StringVar(value="请选择算法")
-alg_options = ["基础DFS算法", "MRV+LCV算法", "AC3+MRV+LCV算法"]
-alg_menu = ttk.Combobox(algorithm_frame, textvariable=algorithm_var, values=alg_options, state="readonly")
-alg_menu.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
-
-# ---------------------- 11. 性能统计板块 ----------------------
-performance_frame = ttk.LabelFrame(root, text="算法性能统计", padding="10")
-performance_frame.pack(fill=tk.BOTH, padx=20, pady=10, expand=True)
-
-perf_labels = {}
-metrics = [
-    ("algorithm", "算法名称：", "未运行"),
-    ("time", "执行时间：", "0.000 秒"),
-    ("nodes", "搜索节点数：", "0"),
-    ("backtracks", "回溯次数：", "0"),
-    ("status", "求解状态：", "待求解")
-]
-
-for i, (key, label_text, default_value) in enumerate(metrics):
-    row_frame = ttk.Frame(performance_frame)
-    row_frame.pack(fill=tk.X, pady=3)
-    label = ttk.Label(row_frame, text=label_text, font=("Arial", 10))
-    label.pack(side=tk.LEFT)
-    value_label = ttk.Label(row_frame, text=default_value, font=("Arial", 10, "bold"), foreground="#0066cc")
-    value_label.pack(side=tk.LEFT, padx=5)
-    perf_labels[key] = value_label
-
+# ---------------------- 性能统计更新（微调：适配新布局）----------------------
 def update_performance(perf_data):
     if perf_data is None:
         perf_labels['algorithm'].config(text="未运行")
@@ -438,7 +603,6 @@ def update_performance(perf_data):
         else:
             perf_labels['status'].config(text=status, foreground="#666666")
 
-# ---------------------- 新增：实时性能更新函数 ----------------------
 def update_perf_real_time(nodes, backtracks):
     perf_labels['nodes'].config(text=str(nodes))
     perf_labels['backtracks'].config(text=str(backtracks))
@@ -446,15 +610,15 @@ def update_perf_real_time(nodes, backtracks):
         elapsed_time = time.time() - solve_start_time
         perf_labels['time'].config(text=f"{elapsed_time:.3f} 秒")
 
-# ---------------------- 12. 求解按钮区（真实算法调用）----------------------
-solve_frame = ttk.Frame(root, padding="0 0 0 20")
-solve_frame.pack(fill=tk.X, padx=20)
+# ---------------------- 统计图表显示（占位函数）----------------------
+def show_chart():
+    messagebox.showinfo("图表功能", "统计图表功能将在后续版本实现\n当前已显示核心统计数据")
 
+# ---------------------- 求解函数（微调：适配动画开关）----------------------
 def solve_sudoku():
     global solve_start_time, is_animating
     selected_alg = algorithm_var.get()
     
-    # 前置校验
     if selected_alg == "请选择算法":
         perf_labels['status'].config(text="请先选择算法", foreground="#cc0000")
         return
@@ -464,9 +628,8 @@ def solve_sudoku():
         perf_labels['status'].config(text="请输入或生成数独", foreground="#cc0000")
         return
     
-    # 初始化状态
     disable_buttons()
-    is_animating = True
+    is_animating = animate_var.get()
     animation_queue.clear()
     perf_labels['algorithm'].config(text=selected_alg)
     perf_labels['nodes'].config(text="0")
@@ -474,7 +637,6 @@ def solve_sudoku():
     perf_labels['time'].config(text="0.000 秒")
     perf_labels['status'].config(text="求解中...", foreground="#ff9900")
     
-    # 启动算法
     def run_solver():
         try:
             start_time = time.time()
@@ -485,9 +647,8 @@ def solve_sudoku():
                     raise ImportError("基础DFS算法未加载")
                 solver = BasicSolver()
                 solution = solver.solve(puzzle)
-                
-                # 使用solver.stats获取统计信息
                 final_perf = {
+                    'algorithm': selected_alg,
                     'time': solver.stats.solve_time,
                     'nodes': solver.stats.nodes,
                     'backtracks': solver.stats.backtracks,
@@ -500,8 +661,8 @@ def solve_sudoku():
                     raise ImportError("MRV+LCV算法未加载")
                 solver = MRVLCVSolver()
                 solution = solver.solve(puzzle)
-                
                 final_perf = {
+                    'algorithm': selected_alg,
                     'time': solver.stats.solve_time,
                     'nodes': solver.stats.nodes,
                     'backtracks': solver.stats.backtracks,
@@ -514,8 +675,8 @@ def solve_sudoku():
                     raise ImportError("AC3+MRV+LCV算法未加载")
                 solver = AC3_MRV_LCV_Solver()
                 solution = solver.solve(puzzle)
-                
                 final_perf = {
+                    'algorithm': selected_alg,
                     'time': solver.stats.solve_time,
                     'nodes': solver.stats.nodes,
                     'backtracks': solver.stats.backtracks,
@@ -537,26 +698,20 @@ def finish_solve(success, result_board, final_perf):
     global is_animating
     is_animating = False
     
-    # 更新最终性能
     perf_labels['time'].config(text=f"{final_perf['time']:.3f} 秒")
     perf_labels['nodes'].config(text=str(final_perf['nodes']))
     perf_labels['backtracks'].config(text=str(final_perf['backtracks']))
     
-    # 更新结果状态
     if success:
         perf_labels['status'].config(text="求解成功", foreground="#00aa00")
         fill_sudoku(result_board)
     else:
         perf_labels['status'].config(text="求解失败（无解）", foreground="#cc0000")
     
-    # 启用按钮
     enable_buttons()
 
-solve_btn = ttk.Button(solve_frame, text="开始求解", command=solve_sudoku)
-solve_btn.pack(side=tk.LEFT, padx=5)
-
+# ---------------------- 算法对比函数（微调：结果显示到文本框）----------------------
 def compare_algorithms():
-    """对比所有算法的性能"""
     sudoku_data = read_sudoku()
     if all(value == 0 for row in sudoku_data for value in row):
         messagebox.showwarning("提示", "请先输入或生成数独")
@@ -564,6 +719,10 @@ def compare_algorithms():
     
     disable_buttons()
     perf_labels['status'].config(text="正在对比算法...", foreground="#ff9900")
+    compare_text.config(state="normal")
+    compare_text.delete(1.0, tk.END)
+    compare_text.insert(tk.END, "正在运行算法对比，请稍候...\n")
+    compare_text.config(state="disabled")
     
     def run_comparison():
         try:
@@ -575,8 +734,10 @@ def compare_algorithms():
                 solver = BasicSolver()
                 solution = solver.solve(puzzle)
                 results.append(
-                    f"基础DFS: {solver.stats.solve_time:.3f}秒 "
-                    f"节点:{solver.stats.nodes} 回溯:{solver.stats.backtracks} "
+                    f"基础DFS算法："
+                    f"耗时{solver.stats.solve_time:.3f}秒 | "
+                    f"节点{solver.stats.nodes} | "
+                    f"回溯{solver.stats.backtracks} | "
                     f"{'✓成功' if solution else '✗失败'}"
                 )
             
@@ -586,8 +747,10 @@ def compare_algorithms():
                 solver = MRVLCVSolver()
                 solution = solver.solve(puzzle)
                 results.append(
-                    f"MRV+LCV: {solver.stats.solve_time:.3f}秒 "
-                    f"节点:{solver.stats.nodes} 回溯:{solver.stats.backtracks} "
+                    f"MRV+LCV算法："
+                    f"耗时{solver.stats.solve_time:.3f}秒 | "
+                    f"节点{solver.stats.nodes} | "
+                    f"回溯{solver.stats.backtracks} | "
                     f"{'✓成功' if solution else '✗失败'}"
                 )
             
@@ -597,15 +760,22 @@ def compare_algorithms():
                 solver = AC3_MRV_LCV_Solver()
                 solution = solver.solve(puzzle)
                 results.append(
-                    f"AC3+MRV+LCV: {solver.stats.solve_time:.3f}秒 "
-                    f"节点:{solver.stats.nodes} 回溯:{solver.stats.backtracks} "
+                    f"AC3+MRV+LCV算法："
+                    f"耗时{solver.stats.solve_time:.3f}秒 | "
+                    f"节点{solver.stats.nodes} | "
+                    f"回溯{solver.stats.backtracks} | "
                     f"{'✓成功' if solution else '✗失败'}"
                 )
             
-            # 显示结果
+            # 显示结果到文本框
             result_text = "\n".join(results)
-            root.after(0, lambda: messagebox.showinfo("算法对比结果", result_text))
-            root.after(0, lambda: perf_labels['status'].config(text="对比完成", foreground="#0066cc"))
+            root.after(0, lambda: [
+                compare_text.config(state="normal"),
+                compare_text.delete(1.0, tk.END),
+                compare_text.insert(tk.END, result_text),
+                compare_text.config(state="disabled"),
+                perf_labels['status'].config(text="对比完成", foreground="#0066cc")
+            ])
         
         except Exception as e:
             root.after(0, lambda: messagebox.showerror("对比失败", str(e)))
@@ -614,8 +784,5 @@ def compare_algorithms():
     
     threading.Thread(target=run_comparison, daemon=True).start()
 
-compare_btn = ttk.Button(solve_frame, text="对比所有算法", command=compare_algorithms)
-compare_btn.pack(side=tk.LEFT, padx=5)
-
-# ---------------------- 13. 启动主循环 ----------------------
+# ---------------------- 启动主循环 ----------------------
 root.mainloop()
